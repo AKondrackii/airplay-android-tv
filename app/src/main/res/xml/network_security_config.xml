@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cleartext is needed for the local HLS proxy (http://localhost) and for http media URLs
+     an AirPlay sender may hand over; the app itself never contacts any server. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

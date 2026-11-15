@@ -1,0 +1,31 @@
+name: Set up Android build
+description: JDK 17, Android NDK/CMake, Gradle cache and the prebuilt static OpenSSL (cached).
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: "17"
+
+    - uses: gradle/actions/setup-gradle@v4
+
+    - name: Install NDK and CMake
+      shell: bash
+      run: |
+        yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+        "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+          "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1" > /dev/null
+        echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
+    - name: Cache OpenSSL build
+      id: openssl-cache
+      uses: actions/cache@v4
+      with:
+        path: airplay/src/main/cpp/prebuilt/openssl
+        key: openssl-${{ runner.os }}-${{ hashFiles('scripts/build-openssl-android.sh') }}
+
+    - name: Build OpenSSL for Android
+      if: steps.openssl-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: scripts/build-openssl-android.sh

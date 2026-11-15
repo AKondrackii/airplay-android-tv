@@ -1,0 +1,15 @@
+.gradle/
+build/
+*/build/
+local.properties
+.idea/
+*.iml
+.cxx/
+*/.cxx/
+captures/
+*.log
+.toolchain-install.log
+/keystore/
+# Built by scripts/build-openssl-android.sh (CI caches it)
+airplay/src/main/cpp/prebuilt/
+/dist/
