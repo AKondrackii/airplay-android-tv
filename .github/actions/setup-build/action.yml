@@ -3,12 +3,15 @@ description: JDK 17, Android NDK/CMake, Gradle cache and the prebuilt static Ope
 runs:
   using: composite
   steps:
-    - uses: actions/setup-java@v4
+    - uses: actions/setup-java@v6
       with:
         distribution: temurin
         java-version: "17"
 
-    - uses: gradle/actions/setup-gradle@v4
+    - uses: gradle/actions/setup-gradle@v6
+      with:
+        # open-source cache on GitHub Actions cache (the default 'enhanced' is a commercial service)
+        cache-provider: basic
 
     - name: Install NDK and CMake
       shell: bash
@@ -20,7 +23,7 @@ runs:
 
     - name: Cache OpenSSL build
       id: openssl-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: airplay/src/main/cpp/prebuilt/openssl
         key: openssl-${{ runner.os }}-${{ hashFiles('scripts/build-openssl-android.sh') }}
