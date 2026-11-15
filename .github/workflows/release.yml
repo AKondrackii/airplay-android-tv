@@ -37,7 +37,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ]; then
-            echo "::error::Signing secrets are missing. See docs/DEVELOPMENT.md → «Релизы на GitHub»."
+            echo "::error::Signing secrets are missing. Add the four ANDROID_* secrets: see docs/DEVELOPMENT.md, section «Однократная настройка подписи»."
             exit 1
           fi
           mkdir -p keystore
