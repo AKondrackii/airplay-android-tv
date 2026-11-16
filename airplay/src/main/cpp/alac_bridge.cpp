@@ -18,10 +18,18 @@ const uint8_t kAirPlayCookie[] = {
 };
 }  // namespace
 
+// The reference decoder only checks the bit position once per sample and then reads a
+// few bytes past it (up to ~41 bits plus a 32-bit look-ahead). Decoding straight from the
+// RTP buffer crashed whenever a packet ended at a page boundary, so packets are copied
+// into a buffer with zeroed slack behind them.
+constexpr int kMaxPacket = 16 * 1024;
+constexpr int kSlack = 256;
+
 struct alac_bridge_s {
     ALACDecoder decoder;
     uint32_t frames_per_packet;
     uint32_t channels;
+    uint8_t in[kMaxPacket + kSlack];
 };
 
 extern "C" alac_bridge_t *alac_bridge_create(void) {
@@ -47,9 +55,11 @@ extern "C" int alac_bridge_decode(alac_bridge_t *b, const uint8_t *in, int in_le
     if (!b || !in || in_len <= 0 || !out) return -1;
     const uint32_t needed = b->frames_per_packet * b->channels;
     if (out_capacity_samples < static_cast<int>(needed)) return -1;
-    // BitBuffer takes a non-const pointer but only reads from it.
+    if (in_len > kMaxPacket) return -1;
+    memcpy(b->in, in, static_cast<size_t>(in_len));
+    memset(b->in + in_len, 0, kSlack);
     BitBuffer bits;
-    BitBufferInit(&bits, const_cast<uint8_t *>(in), static_cast<uint32_t>(in_len));
+    BitBufferInit(&bits, b->in, static_cast<uint32_t>(in_len));
     uint32_t frames = 0;
     int32_t status = b->decoder.Decode(&bits, reinterpret_cast<uint8_t *>(out),
                                        b->frames_per_packet, b->channels, &frames);

@@ -79,5 +79,12 @@ git push origin v1.1.0
 Номер версии берётся из тега: `v1.2.3` → `versionName 1.2.3`, `versionCode 10203`. Тег обязательно
 должен иметь вид `vX.Y.Z`, а каждая следующая версия — быть больше предыдущей.
 
+## Обновления в приложении
+Приложение проверяет `releases/latest` репозитория из `BuildConfig.UPDATE_REPO`. В CI это
+`GITHUB_REPOSITORY`, локально `-PupdateRepo=owner/name`, по умолчанию `AKondrackii/airplay-android-tv`.
+Ожидаемый формат релиза создаёт workflow `Release`: тег `vX.Y.Z`, файлы `AirPlayReceiver-<abi>.apk`
+и `SHA256SUMS.txt`. Черновики и pre-release игнорируются. Обновление предлагается, только если versionCode
+из тега больше установленного, а APK подписан тем же ключом.
+
 ## Тесты на эмуляторе
 См. [TESTING.md](TESTING.md): там описан AVD Android TV, `scripts/security_probe.py` и `scripts/fuzz_rtsp.py`.

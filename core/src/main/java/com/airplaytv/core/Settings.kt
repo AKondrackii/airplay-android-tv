@@ -57,6 +57,12 @@ data class ReceiverSettings(
     val incomingBehavior: IncomingBehavior = IncomingBehavior.AUTO_OPEN,
     /** Keep the receiver running after leaving the app. Off = it stops with the app. */
     val runInBackground: Boolean = true,
+    /** false = fit with black bars (no distortion), true = fill the screen and crop. */
+    val videoFill: Boolean = false,
+    /** Ask GitHub Releases for a newer version every 12 h (the app's only internet request). */
+    val checkUpdates: Boolean = true,
+    /** Download a found update in the background; installing always needs the user's OK. */
+    val autoDownloadUpdates: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_NAME = "Android TV"
@@ -86,6 +92,9 @@ class SettingsRepository(private val context: Context) {
         val volume = booleanPreferencesKey("follow_sender_volume")
         val incoming = stringPreferencesKey("incoming_behavior")
         val background = booleanPreferencesKey("run_in_background")
+        val fill = booleanPreferencesKey("video_fill")
+        val checkUpdates = booleanPreferencesKey("check_updates")
+        val autoDownload = booleanPreferencesKey("auto_download_updates")
     }
 
     val settings: Flow<ReceiverSettings> = context.dataStore.data.map { p ->
@@ -103,6 +112,9 @@ class SettingsRepository(private val context: Context) {
             followSenderVolume = p[Keys.volume] ?: d.followSenderVolume,
             incomingBehavior = enumOr(p[Keys.incoming], d.incomingBehavior),
             runInBackground = p[Keys.background] ?: d.runInBackground,
+            videoFill = p[Keys.fill] ?: d.videoFill,
+            checkUpdates = p[Keys.checkUpdates] ?: d.checkUpdates,
+            autoDownloadUpdates = p[Keys.autoDownload] ?: d.autoDownloadUpdates,
         )
     }.distinctUntilChanged()
 
@@ -124,6 +136,9 @@ class SettingsRepository(private val context: Context) {
                 followSenderVolume = p[Keys.volume] ?: d.followSenderVolume,
                 incomingBehavior = enumOr(p[Keys.incoming], d.incomingBehavior),
                 runInBackground = p[Keys.background] ?: d.runInBackground,
+                videoFill = p[Keys.fill] ?: d.videoFill,
+                checkUpdates = p[Keys.checkUpdates] ?: d.checkUpdates,
+                autoDownloadUpdates = p[Keys.autoDownload] ?: d.autoDownloadUpdates,
             )
             val n = transform(cur)
             p[Keys.name] = ReceiverSettings.sanitizeName(n.deviceName)
@@ -138,6 +153,9 @@ class SettingsRepository(private val context: Context) {
             p[Keys.volume] = n.followSenderVolume
             p[Keys.incoming] = n.incomingBehavior.name
             p[Keys.background] = n.runInBackground
+            p[Keys.fill] = n.videoFill
+            p[Keys.checkUpdates] = n.checkUpdates
+            p[Keys.autoDownload] = n.autoDownloadUpdates
         }
     }
 

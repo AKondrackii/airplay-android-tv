@@ -32,6 +32,11 @@ add_library(alac STATIC
   ${TP}/alac/ALACDecoder.cpp ${TP}/alac/ALACBitUtilities.c ${TP}/alac/EndianPortable.c
   ${TP}/alac/ag_dec.c ${TP}/alac/dp_dec.c ${TP}/alac/matrix_dec.c)
 target_include_directories(alac PUBLIC ${TP}/alac)
+# Apple's code only detects little-endian on x86 and treats ARM as big-endian, which
+# corrupts the ALAC magic cookie (2 GB allocation, no sound). Every Android ABI is LE.
+target_compile_definitions(alac PRIVATE TARGET_RT_LITTLE_ENDIAN=1)
+# Predictor arithmetic relies on two's-complement wrap-around; make it defined.
+target_compile_options(alac PRIVATE -fwrapv)
 target_compile_options(alac PRIVATE -fvisibility=hidden -Wno-everything)
 
 # ---- UxPlay protocol library (GPL-3.0) ----

@@ -86,6 +86,14 @@ class SubnetFilterTest {
         assertThat(filter.isAllowed(tvWifi, ip("192.168.1.23"))).isFalse()
     }
 
+    @Test fun `outgoing remote-control target must be a LAN host`() {
+        assertThat(filter.isLocalPeer(ip("192.168.1.23"))).isTrue()
+        assertThat(filter.isLocalPeer(ip("192.168.2.23"))).isFalse()
+        assertThat(filter.isLocalPeer(ip("8.8.8.8"))).isFalse()
+        assertThat(filter.isLocalPeer(ip("192.168.1.255"))).isFalse()
+        assertThat(filter.isLocalPeer(tvWifi)).isFalse()
+    }
+
     @Test fun `malformed address lengths are rejected`() {
         assertThat(filter.isAllowed(byteArrayOf(1, 2, 3), byteArrayOf(1, 2, 3))).isFalse()
     }

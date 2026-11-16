@@ -45,6 +45,7 @@ class ReceiverService : LifecycleService() {
         createChannel()
         goForeground(buildNotification(ReceiverStatus.Starting), streaming = false)
         graph.controller.start()
+        graph.updates.start()
 
         lifecycleScope.launch {
             graph.controller.status.collect { st ->

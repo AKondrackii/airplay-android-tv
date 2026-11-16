@@ -61,8 +61,12 @@ data class NowPlaying(
     val coverArt: ByteArray? = null,
     val positionSec: Double = 0.0,
     val durationSec: Double = 0.0,
+    /** Explicit-content track (shown as an "E" badge instead of Apple's 🅴 glyph). */
+    val explicit: Boolean = false,
+    /** SystemClock.uptimeMillis() when [positionSec] was reported (the UI advances it). */
+    val positionAt: Long = 0L,
 ) {
-    override fun equals(other: Any?): Boolean = other is NowPlaying && title == other.title &&
+    override fun equals(other: Any?): Boolean = other is NowPlaying && title == other.title && explicit == other.explicit &&
         artist == other.artist && album == other.album && positionSec == other.positionSec &&
         durationSec == other.durationSec && (coverArt?.contentEquals(other.coverArt) ?: (other.coverArt == null))
     override fun hashCode(): Int = listOf(title, artist, album, positionSec, durationSec).hashCode()

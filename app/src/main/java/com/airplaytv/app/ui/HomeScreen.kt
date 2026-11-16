@@ -24,6 +24,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.airplaytv.app.update.UpdateManager
 import com.airplaytv.core.ContentType
 import com.airplaytv.core.LocalNetwork
 import com.airplaytv.core.ReceiverStatus
@@ -39,6 +40,8 @@ fun HomeScreen(
     onOpenPlayer: () -> Unit,
     onDisconnect: () -> Unit,
     onStartService: () -> Unit,
+    update: UpdateManager.State = UpdateManager.State.Idle,
+    onUpdate: () -> Unit = {},
 ) {
     val primaryFocus = remember { FocusRequester() }
     AuroraBackground {
@@ -47,6 +50,12 @@ fun HomeScreen(
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 GText("AIRPLAY RECEIVER", GlassType.Caption)
                 Box(Modifier.weight(1f))
+                updateLabel(update)?.let { label ->
+                    GlassButton(onClick = onUpdate, contentPadding = 16.dp, tint = GlassTokens.Positive.copy(alpha = 0.16f)) {
+                        GText(label, GlassType.Label)
+                    }
+                    Spacer(width = 14.dp)
+                }
                 GlassButton(onClick = onSettings, contentPadding = 16.dp) { GText("Настройки", GlassType.Label) }
             }
 
@@ -73,7 +82,7 @@ fun HomeScreen(
                 }
             }
 
-            BottomBar(network, status, serviceRunning)
+            BottomBar(network, deviceName, Modifier.align(Alignment.CenterHorizontally))
         }
     }
     LaunchedEffect(status is ReceiverStatus.Connected) {
@@ -85,7 +94,7 @@ fun HomeScreen(
 private fun IdleBlock(st: ReceiverStatus, deviceName: String, serviceRunning: Boolean, onStart: () -> Unit) {
     val (title, hint) = when (st) {
         is ReceiverStatus.Ready -> "Готово к подключению" to
-            "Откройте Пункт управления на iPhone → Повтор экрана → выберите «$deviceName»"
+            "Повтор экрана → выберите «$deviceName»"
         ReceiverStatus.Starting -> "Запуск приёмника…" to "Подготавливаем сетевой приёмник"
         ReceiverStatus.NoNetwork -> "Нет локальной сети" to
             "Подключите телевизор к Wi-Fi или Ethernet. Мобильная сеть и VPN не используются."
@@ -96,17 +105,9 @@ private fun IdleBlock(st: ReceiverStatus, deviceName: String, serviceRunning: Bo
     GText(title, GlassType.Display, align = TextAlign.Center)
     Spacer(height = 10.dp)
     GText(hint, GlassType.Body, modifier = Modifier.widthIn(max = 620.dp), align = TextAlign.Center)
-    Spacer(height = 18.dp)
     if (!serviceRunning) {
+        Spacer(height = 18.dp)
         GlassLabelButton("Включить приёмник", onStart, tint = GlassTokens.Accent.copy(alpha = 0.18f))
-    } else {
-        Row(
-            Modifier.glass(RoundedCornerShape(50)).padding(horizontal = 18.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            GText("Имя на iPhone  ", GlassType.Caption)
-            GText(deviceName, GlassType.Headline, maxLines = 1)
-        }
     }
 }
 
@@ -135,13 +136,13 @@ private fun ConnectedCard(st: ReceiverStatus.Connected, onOpen: () -> Unit, onDi
 }
 
 @Composable
-private fun BottomBar(network: LocalNetwork?, status: ReceiverStatus, serviceRunning: Boolean) {
+private fun BottomBar(network: LocalNetwork?, deviceName: String, modifier: Modifier = Modifier) {
     Row(
-        Modifier.fillMaxWidth().glass(RoundedCornerShape(GlassTokens.RadiusM)).padding(horizontal = 24.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier.fillMaxWidth(0.78f).glass(RoundedCornerShape(GlassTokens.RadiusM)).padding(horizontal = 28.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        InfoItem("IP-адрес", network?.primaryIpv4 ?: "—")
+        InfoItem("IP-адрес", network?.primaryIpv4 ?: "—", Modifier.weight(1f))
+        InfoItem("Имя устройства", deviceName, Modifier.weight(1f), Alignment.CenterHorizontally)
         InfoItem(
             "Сеть",
             when {
@@ -149,25 +150,26 @@ private fun BottomBar(network: LocalNetwork?, status: ReceiverStatus, serviceRun
                 network.transport == Transport.ETHERNET -> "Ethernet"
                 else -> network.ssid ?: "Wi-Fi"
             },
+            Modifier.weight(1f),
+            Alignment.End,
         )
-        val lanOk = network != null
-        StatusPill(
-            if (lanOk) "Только локальная сеть" else "Нет локальной сети",
-            if (lanOk) GlassTokens.Positive else GlassTokens.Warning,
-        )
-        val (svcText, svcColor) = when {
-            !serviceRunning -> "Сервис остановлен" to GlassTokens.Negative
-            status is ReceiverStatus.Error -> "Ошибка сервиса" to GlassTokens.Negative
-            else -> "Работает в фоне" to GlassTokens.Positive
-        }
-        StatusPill(svcText, svcColor, pulse = serviceRunning)
     }
 }
 
 @Composable
-private fun InfoItem(label: String, value: String) {
-    Column {
+private fun InfoItem(label: String, value: String, modifier: Modifier = Modifier, align: Alignment.Horizontal = Alignment.Start) {
+    Column(modifier, horizontalAlignment = align) {
         GText(label, GlassType.Caption)
         GText(value, GlassType.Mono, maxLines = 1)
     }
+}
+
+/** Top-bar update button text, or null when there is nothing to offer. */
+fun updateLabel(state: UpdateManager.State): String? = when (state) {
+    is UpdateManager.State.Available -> "Обновить до ${state.release.version}"
+    is UpdateManager.State.Downloading -> "Загрузка обновления ${(state.progress * 100).toInt()}%"
+    is UpdateManager.State.Ready -> "Установить ${state.release.version}"
+    is UpdateManager.State.Installing -> "Установка…"
+    is UpdateManager.State.Failed -> state.release?.let { "Повторить обновление" }
+    else -> null
 }

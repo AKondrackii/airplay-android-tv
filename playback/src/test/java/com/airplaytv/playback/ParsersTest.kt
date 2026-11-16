@@ -53,6 +53,25 @@ class ParsersTest {
         assertThat(info.album).isEqualTo("Album")
     }
 
+    @Test fun `apple music explicit marker becomes a flag`() {
+        val info = DmapParser.parse(tag("mlit", tag("minm", "Forever Yung \uD83C\uDD74".toByteArray())))
+        assertThat(info.title).isEqualTo("Forever Yung")
+        assertThat(info.explicit).isTrue()
+        assertThat(DmapParser.parse(tag("mlit", tag("minm", "Clean".toByteArray()))).explicit).isFalse()
+    }
+
+    @Test fun `yandex music circled exclamation marks explicit`() {
+        val info = DmapParser.parse(tag("mlit", tag("minm", "Сука !\u20DD".toByteArray())))
+        assertThat(info.title).isEqualTo("Сука")
+        assertThat(info.explicit).isTrue()
+    }
+
+    @Test fun `private-use icon glyph at the end marks explicit`() {
+        val info = DmapParser.parse(tag("mlit", tag("minm", "Сука \uE001".toByteArray())))
+        assertThat(info.title).isEqualTo("Сука")
+        assertThat(info.explicit).isTrue()
+    }
+
     @Test fun `dmap with a lying length is rejected safely`() {
         val bad = "minm".toByteArray() + b(0x7f, 0xff, 0xff, 0xff) + "x".toByteArray()
         assertThat(DmapParser.parse(bad).title).isNull()

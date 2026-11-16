@@ -43,7 +43,7 @@ typedef struct {
         onVideoFlush, onVideoPause, onVideoResume, onVideoReset, onMirrorRunning, onAudioFormat,
         onAudioPcm, onAudioCompressed, onAudioFlush, onAudioVolume, onMetadata, onCoverArt,
         onProgress, onVideoPlay, onVideoScrub, onVideoRate, onVideoStop, getPlaybackInfo,
-        onPlaylistRemove;
+        onPlaylistRemove, onDacp;
 } methods_t;
 
 typedef struct bridge_s {
@@ -349,9 +349,23 @@ static double audio_set_client_volume_cb(void *cls) {
     return b ? (double) b->volume_db : -15.0;
 }
 
-/* UxPlay calls these without NULL checks; the app has no use for them. */
-static void export_dacp_cb(void *cls, const char *active_remote, const char *dacp_id) { (void) cls; }
-static void audio_remote_control_id_cb(void *cls, const char *dacp_id, const char *active_remote) { (void) cls; }
+/* DACP: the sender's remote-control endpoint (used for play/pause/next from the TV). */
+static void dacp_cb(bridge_t *b, const char *dacp_id, const char *active_remote) {
+    if (!dacp_id || !active_remote) return;
+    CB_ENV(b);
+    jstring d = new_string_or_null(env, dacp_id);
+    jstring a = new_string_or_null(env, active_remote);
+    (*env)->CallVoidMethod(env, b->callbacks, b->m.onDacp, d, a);
+    check_exception(env, "onDacp");
+    if (d) (*env)->DeleteLocalRef(env, d);
+    if (a) (*env)->DeleteLocalRef(env, a);
+}
+static void export_dacp_cb(void *cls, const char *active_remote, const char *dacp_id) {
+    dacp_cb((bridge_t *) cls, dacp_id, active_remote);
+}
+static void audio_remote_control_id_cb(void *cls, const char *dacp_id, const char *active_remote) {
+    dacp_cb((bridge_t *) cls, dacp_id, active_remote);
+}
 static void audio_stop_coverart_rendering_cb(void *cls) { (void) cls; }
 static void get_custom_profile_cb(void *cls, const char **custom_profile) { *custom_profile = NULL; }
 
@@ -483,6 +497,7 @@ static bool lookup_methods(JNIEnv *env, jclass c, methods_t *m) {
     M(onVideoStop, "onVideoStop", "()V")
     M(getPlaybackInfo, "getPlaybackInfo", "()[D")
     M(onPlaylistRemove, "onPlaylistRemove", "()F")
+    M(onDacp, "onDacp", "(Ljava/lang/String;Ljava/lang/String;)V")
 #undef M
     return true;
 }
@@ -596,8 +611,10 @@ Java_com_airplaytv_airplay_NativeBridge_nativeCreate(JNIEnv *env, jclass clazz, 
     if (ok) {
         raop_set_log_callback(b->raop, log_cb, b);
         raop_set_log_level(b->raop, log_level);
-        /* nohold = 1: a new client may take over from the current one */
-        ok = raop_init2(b->raop, 1, mac_str, keyfile) == 0;
+        /* nohold = 0 (UxPlay default): while a session runs, other clients get 409.
+           With nohold = 1 any new RTSP connection - even another Apple device just
+           probing /info - tears down the running mirroring session. */
+        ok = raop_init2(b->raop, 0, mac_str, keyfile) == 0;
     }
     if (ok) {
         if (width > 0) raop_set_plist(b->raop, "width", width);
@@ -639,7 +656,10 @@ JNIEXPORT jint JNICALL
 Java_com_airplaytv_airplay_NativeBridge_nativeStart(JNIEnv *env, jclass clazz, jlong handle, jint port) {
     bridge_t *b = (bridge_t *) (intptr_t) handle;
     if (!b || !b->raop) return -1;
-    unsigned short tcp[2] = { (unsigned short) port, (unsigned short) port };
+    /* tcp[0] = mirroring data port (0 = let the OS choose), tcp[1] = RTSP/HTTP port.
+       Passing the RTSP port twice made the mirror socket fail to bind: audio worked,
+       video never arrived. */
+    unsigned short tcp[2] = { 0, (unsigned short) port };
     unsigned short udp[3] = { 0, 0, 0 };
     raop_set_tcp_ports(b->raop, tcp);
     raop_set_udp_ports(b->raop, udp);

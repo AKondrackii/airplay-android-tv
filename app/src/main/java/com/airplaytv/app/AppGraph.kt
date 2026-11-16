@@ -4,6 +4,8 @@ import android.content.Context
 import com.airplaytv.airplay.AirPlayReceiver
 import com.airplaytv.core.MediaSink
 import com.airplaytv.core.SettingsRepository
+import com.airplaytv.app.update.UpdateManager
+import com.airplaytv.network.DacpClient
 import com.airplaytv.network.MdnsAdvertiser
 import com.airplaytv.network.NetworkMonitor
 import com.airplaytv.playback.PlaybackEngine
@@ -31,6 +33,8 @@ class AppGraph(context: Context) {
     val playback by lazy { PlaybackEngine(appContext, scope) }
     val network by lazy { NetworkMonitor(appContext, scope) }
     val mdns by lazy { MdnsAdvertiser(appContext) }
+    val dacp by lazy { DacpClient(mdns, subnets::isLocalPeer) }
+    val updates by lazy { UpdateManager(appContext, settings, scope) }
 
     /**
      * Loopback peers are only admitted while an AirPlay-video session runs, because the

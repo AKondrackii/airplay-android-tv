@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
             val settings by graph.settings.settings.collectAsState(initial = ReceiverSettings())
             val running by graph.controller.serviceRunning.collectAsState()
             val prompt by graph.policy.prompt.collectAsState()
+            val update by graph.updates.state.collectAsState()
             val wantPlayer by showPlayer.collectAsState()
             var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
 
@@ -80,7 +81,17 @@ class MainActivity : ComponentActivity() {
             }
 
             Box(Modifier.fillMaxSize()) {
-                AnimatedContent(screen, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "screen") { sc ->
+                // The player is shown outside AnimatedContent: a SurfaceView inside a
+                // fading graphics layer stays black on some TV GPUs.
+                if (screen == Screen.PLAYER) {
+                    val remoteOk by graph.controller.remoteControlAvailable.collectAsState()
+                    PlayerScreen(
+                        graph.playback, status, fill = settings.videoFill,
+                        onToggleFill = { lifecycleScope.launch { graph.settings.update { it.copy(videoFill = !it.videoFill) } } },
+                        remoteAvailable = remoteOk,
+                        onRemote = { graph.controller.remote(it) },
+                    )
+                } else AnimatedContent(screen, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "screen") { sc ->
                     when (sc) {
                         Screen.HOME -> HomeScreen(
                             status = status,
@@ -91,10 +102,12 @@ class MainActivity : ComponentActivity() {
                             onOpenPlayer = { screen = Screen.PLAYER },
                             onDisconnect = { graph.controller.disconnectAll() },
                             onStartService = { ReceiverService.start(this@MainActivity) },
+                            update = update,
+                            onUpdate = { graph.updates.downloadAndInstall() },
                         )
                         Screen.SETTINGS -> SettingsScreen(graph, onOpenLog = { screen = Screen.LOG })
                         Screen.LOG -> LogScreen()
-                        Screen.PLAYER -> PlayerScreen(graph.playback, status)
+                        Screen.PLAYER -> Unit
                     }
                 }
                 Prompts(prompt)

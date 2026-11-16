@@ -32,6 +32,10 @@ class PlaybackEngine(context: Context, scope: CoroutineScope) : MediaSink {
         if (hlsOn) h else m
     }.stateIn(scope, SharingStarted.Eagerly, null)
 
+    /** Uptime of the last audio packet; lets the UI tell "playing" from "paused on the phone". */
+    @Volatile var lastAudioAt: Long = 0L
+        private set
+
     @Volatile private var surface: Surface? = null
     @Volatile private var hlsActive = false
 
@@ -61,9 +65,14 @@ class PlaybackEngine(context: Context, scope: CoroutineScope) : MediaSink {
         audio.onFormat(compressionType)
         _nowPlaying.value = NowPlaying()
     }
-    override fun onAudioPcm(pcm: ByteBuffer, length: Int) = audio.writePcm(pcm, length)
-    override fun onAudioCompressed(data: ByteBuffer, length: Int, compressionType: Int) =
+    override fun onAudioPcm(pcm: ByteBuffer, length: Int) {
+        lastAudioAt = android.os.SystemClock.uptimeMillis()
+        audio.writePcm(pcm, length)
+    }
+    override fun onAudioCompressed(data: ByteBuffer, length: Int, compressionType: Int) {
+        lastAudioAt = android.os.SystemClock.uptimeMillis()
         audio.decodeAac(data, length, compressionType)
+    }
     override fun onAudioFlush() = audio.flush()
     override fun onAudioVolume(volumeDb: Float) = audio.setVolumeDb(volumeDb)
     override fun onAudioStopped() {
@@ -73,7 +82,10 @@ class PlaybackEngine(context: Context, scope: CoroutineScope) : MediaSink {
 
     override fun onMetadata(dmap: ByteArray) {
         val info = DmapParser.parse(dmap)
-        _nowPlaying.update { it.copy(title = info.title, artist = info.artist, album = info.album) }
+        DmapParser.lastUnusual.takeIf { it.isNotEmpty() }?.let {
+            com.airplaytv.core.AppLog.i("Metadata", "symbols in title/artist: ${it.joinToString()} explicit=${info.explicit}")
+        }
+        _nowPlaying.update { it.copy(title = info.title, artist = info.artist, album = info.album, explicit = info.explicit) }
     }
 
     override fun onCoverArt(jpeg: ByteArray) {
@@ -86,7 +98,8 @@ class PlaybackEngine(context: Context, scope: CoroutineScope) : MediaSink {
         val pos = (currentRtp - startRtp) and 0xFFFFFFFFL
         if (total == 0L || pos > total) return
         _nowPlaying.update {
-            it.copy(positionSec = pos / AudioEngine.SAMPLE_RATE.toDouble(), durationSec = total / AudioEngine.SAMPLE_RATE.toDouble())
+            it.copy(positionSec = pos / AudioEngine.SAMPLE_RATE.toDouble(), durationSec = total / AudioEngine.SAMPLE_RATE.toDouble(),
+                positionAt = android.os.SystemClock.uptimeMillis())
         }
     }
 

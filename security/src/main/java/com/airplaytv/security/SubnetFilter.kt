@@ -28,6 +28,13 @@ class SubnetFilter {
 
     val allowedAddresses: List<InterfaceAddress> get() = allowed
 
+    /** True if [remote] is a host inside any allowed interface subnet (for outgoing requests). */
+    fun isLocalPeer(remote: ByteArray): Boolean {
+        val iface = allowed.firstOrNull { it.address.size == remote.size && sameSubnet(it.address, remote, it.prefixLength) }
+            ?: return false
+        return isAllowed(iface.address, remote)
+    }
+
     fun isAllowed(local: ByteArray, remote: ByteArray): Boolean {
         if (local.size != remote.size || (local.size != 4 && local.size != 16)) return false
 

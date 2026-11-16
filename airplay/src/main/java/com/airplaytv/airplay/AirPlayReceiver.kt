@@ -31,6 +31,9 @@ data class ReceiverConfig(
     val verboseLog: Boolean = false,
 )
 
+/** The sender's DACP remote-control endpoint (resolved via mDNS as iTunes_Ctrl_<dacpId>). */
+data class RemoteControlId(val dacpId: String, val activeRemote: String)
+
 /** Live state of the protocol layer (independent from the UI lifecycle). */
 data class ReceiverRuntime(
     val running: Boolean = false,
@@ -41,6 +44,7 @@ data class ReceiverRuntime(
     val hls: Boolean = false,
     val audio: Boolean = false,
     val audioIsMedia: Boolean = false,
+    val remote: RemoteControlId? = null,
 ) {
     val content: ContentType
         get() = when {
@@ -73,7 +77,7 @@ class AirPlayReceiver(
     private val events = object : NativeCallbacks.ReceiverEvents {
         override fun onConnectionCountChanged(delta: Int) = _runtime.update {
             val n = (it.openConnections + delta).coerceAtLeast(0)
-            if (n == 0) it.copy(openConnections = 0, client = null, mirroring = false, hls = false, audio = false)
+            if (n == 0) it.copy(openConnections = 0, client = null, mirroring = false, hls = false, audio = false, remote = null)
             else it.copy(openConnections = n)
         }
 
@@ -89,6 +93,9 @@ class AirPlayReceiver(
             _runtime.update { it.copy(audio = true, audioIsMedia = isMedia && !usingScreen) }
         override fun onHlsStarted() = _runtime.update { it.copy(hls = true) }
         override fun onHlsStopped() = _runtime.update { it.copy(hls = false) }
+        override fun onRemoteControl(dacpId: String, activeRemote: String) =
+            _runtime.update { it.copy(remote = RemoteControlId(dacpId, activeRemote)) }
+
         override fun onStreamsReset(type: Int) {
             // RESET_TYPE_RTP_SHUTDOWN (1) / NOHOLD (0): the mirroring/audio stream ended.
             if (type == 0 || type == 1) {

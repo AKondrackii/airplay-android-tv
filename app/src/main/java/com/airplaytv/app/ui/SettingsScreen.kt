@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.airplaytv.app.AppGraph
 import com.airplaytv.app.BuildConfig
 import com.airplaytv.app.service.ReceiverService
+import com.airplaytv.app.update.UpdateManager
 import com.airplaytv.core.AuthMode
 import com.airplaytv.core.IncomingBehavior
 import com.airplaytv.core.ReceiverSettings
@@ -57,6 +58,7 @@ fun SettingsScreen(graph: AppGraph, onOpenLog: () -> Unit) {
     val s by graph.settings.settings.collectAsState(initial = ReceiverSettings())
     val running by graph.controller.serviceRunning.collectAsState()
     val trusted by graph.trustedDevices.devices.collectAsState()
+    val updateState by graph.updates.state.collectAsState()
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     var section by rememberSaveable { mutableStateOf(Section.CONNECTION) }
@@ -135,6 +137,10 @@ fun SettingsScreen(graph: AppGraph, onOpenLog: () -> Unit) {
                             "Сообщается iPhone/Mac; «Авто» — по экрану ТВ и возможностям декодера") { v -> update { it.copy(resolution = v) } } }
                         item { ChoiceRow("Частота кадров", listOf(30, 60), s.maxFps, { "$it к/с" },
                             "30 к/с снижает нагрузку на недорогих приставках") { v -> update { it.copy(maxFps = v) } } }
+                        item { ChoiceRow("Масштаб изображения", listOf(false, true), s.videoFill,
+                            { if (it) "Заполнить экран" else "Вписать (с рамками)" },
+                            "«Вписать» сохраняет пропорции с чёрными рамками, «Заполнить» обрезает края. Во время показа — кнопка OK на пульте") { v ->
+                            update { it.copy(videoFill = v) } } }
                         item { ToggleRow("Аппаратное декодирование", s.hardwareDecoding,
                             "Рекомендуется. Выключайте только при артефактах изображения") { v -> update { it.copy(hardwareDecoding = v) } } }
                         item { ToggleRow("H.265 (HEVC) для повтора экрана", s.allowH265 && hevcHw,
@@ -159,6 +165,24 @@ fun SettingsScreen(graph: AppGraph, onOpenLog: () -> Unit) {
                             ValueRow("Фоновый сервис", if (running) "Работает · остановить" else "Остановлен · запустить",
                                 "Foreground Service с уведомлением") {
                                 if (running) ReceiverService.stop(ctx) else ReceiverService.start(ctx)
+                            }
+                        }
+                        item { ToggleRow("Проверять обновления", s.checkUpdates,
+                            "Раз в 12 часов — запрос к GitHub Releases проекта. Данные о вас и о подключениях не передаются") { v ->
+                            update { it.copy(checkUpdates = v) } } }
+                        item { ToggleRow("Загружать обновления автоматически", s.autoDownloadUpdates,
+                            "Найденная версия скачивается и проверяется в фоне. Установку подтверждаете вы — так требует Android",
+                            enabled = s.checkUpdates) { v -> update { it.copy(autoDownloadUpdates = v) } } }
+                        item {
+                            val (value, hint) = updateRowText(updateState)
+                            ValueRow("Обновление", value, hint) {
+                                when (updateState) {
+                                    is UpdateManager.State.Available, is UpdateManager.State.Ready -> graph.updates.downloadAndInstall()
+                                    is UpdateManager.State.Failed -> if ((updateState as UpdateManager.State.Failed).release != null)
+                                        graph.updates.downloadAndInstall() else graph.updates.checkNow()
+                                    is UpdateManager.State.Downloading, is UpdateManager.State.Installing, UpdateManager.State.Checking -> Unit
+                                    else -> graph.updates.checkNow()
+                                }
                             }
                         }
                         item { ActionRow("Журнал ошибок", GlassTokens.Accent, onOpenLog) }
@@ -291,4 +315,15 @@ fun GlassSwitch(on: Boolean) {
     ) {
         Box(Modifier.padding(3.dp).width(22.dp).height(22.dp).clip(RoundedCornerShape(50)).background(Color.White))
     }
+}
+
+private fun updateRowText(st: UpdateManager.State): Pair<String, String> = when (st) {
+    UpdateManager.State.Idle -> "Проверить" to "Установлена версия ${BuildConfig.VERSION_NAME}"
+    UpdateManager.State.Checking -> "Проверка…" to "Запрос к GitHub Releases"
+    UpdateManager.State.UpToDate -> "Последняя версия" to "Установлена версия ${BuildConfig.VERSION_NAME}. Нажмите, чтобы проверить снова"
+    is UpdateManager.State.Available -> "Обновить до ${st.release.version}" to st.release.notes.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()
+    is UpdateManager.State.Downloading -> "Загрузка ${(st.progress * 100).toInt()}%" to "Файл проверяется по контрольной сумме и подписи"
+    is UpdateManager.State.Ready -> "Установить ${st.release.version}" to "Загружено и проверено. Android попросит подтвердить установку"
+    is UpdateManager.State.Installing -> "Установка…" to "Подтвердите установку в системном окне"
+    is UpdateManager.State.Failed -> (if (st.release != null) "Повторить" else "Проверить") to st.message
 }

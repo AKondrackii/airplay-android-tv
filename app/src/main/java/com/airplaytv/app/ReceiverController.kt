@@ -11,6 +11,7 @@ import com.airplaytv.core.ReceiverStatus
 import com.airplaytv.core.ResolutionMode
 import com.airplaytv.core.Session
 import com.airplaytv.network.MdnsService
+import com.airplaytv.network.RemoteCommand
 import com.airplaytv.playback.MirrorVideoDecoder
 import com.airplaytv.security.PolicyConfig
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -38,6 +40,7 @@ import java.security.SecureRandom
 class ReceiverController(private val g: AppGraph) {
     private val lifecycle = MutableStateFlow<ReceiverStatus>(ReceiverStatus.Stopped)
     private var job: Job? = null
+    private var remoteJob: Job? = null
     private var runningKey: String? = null
     private val passwordVersion = MutableStateFlow(0)
 
@@ -63,12 +66,18 @@ class ReceiverController(private val g: AppGraph) {
             combine(g.settings.settings, g.network.network, passwordVersion) { s, n, _ -> s to n }
                 .collectLatest { (s, n) -> withContext(Dispatchers.IO) { apply(s, n) } }
         }
+        remoteJob = g.scope.launch {
+            g.receiver.runtime.collect { rt -> g.dacp.setSession(rt.remote?.dacpId, rt.remote?.activeRemote) }
+        }
     }
 
     @Synchronized
     fun stop() {
         job?.cancel()
         job = null
+        remoteJob?.cancel()
+        remoteJob = null
+        g.dacp.setSession(null, null)
         g.scope.launch(Dispatchers.IO) {
             synchronized(this@ReceiverController) {
                 g.mdns.stop()
@@ -79,6 +88,16 @@ class ReceiverController(private val g: AppGraph) {
         g.network.stop()
         lifecycle.value = ReceiverStatus.Stopped
         _serviceRunning.value = false
+    }
+
+    /** True when the current sender offered remote control (DACP). */
+    val remoteControlAvailable: StateFlow<Boolean> = g.receiver.runtime
+        .map { it.remote != null }
+        .stateIn(g.scope, SharingStarted.Eagerly, false)
+
+    /** Play/pause/next/previous on the sending device. Fire-and-forget. */
+    fun remote(cmd: RemoteCommand) {
+        g.scope.launch(Dispatchers.IO) { g.dacp.send(cmd) }
     }
 
     fun disconnectAll() {

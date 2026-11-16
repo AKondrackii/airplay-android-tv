@@ -252,6 +252,9 @@ int32_t ALACDecoder::Decode( BitBuffer * bits, uint8_t * sampleBuffer, uint32_t 
 					numSamples  = BitBufferRead( bits, 16 ) << 16;
 					numSamples |= BitBufferRead( bits, 16 );
 				}
+				/* AIRPLAYTV: the sample count comes from the stream; never exceed the
+				   frameLength-sized work buffers (was a heap overflow on corrupt input). */
+				RequireAction( numSamples <= mConfig.frameLength, status = kALAC_ParamError; goto Exit; );
 
 				if ( escapeFlag == 0 )
 				{
@@ -403,6 +406,9 @@ int32_t ALACDecoder::Decode( BitBuffer * bits, uint8_t * sampleBuffer, uint32_t 
 					numSamples  = BitBufferRead( bits, 16 ) << 16;
 					numSamples |= BitBufferRead( bits, 16 );
 				}
+				/* AIRPLAYTV: the sample count comes from the stream; never exceed the
+				   frameLength-sized work buffers (was a heap overflow on corrupt input). */
+				RequireAction( numSamples <= mConfig.frameLength, status = kALAC_ParamError; goto Exit; );
 
 				if ( escapeFlag == 0 )
 				{

@@ -57,5 +57,16 @@ class MdnsAdvertiser(context: Context) {
 
     val isRunning: Boolean @Synchronized get() = jmdns != null
 
+    /**
+     * Resolves one service instance on the same interface the receiver announces on.
+     * Returns the IPv4 address bytes and port, or null. Blocking (up to [timeoutMs]).
+     */
+    fun resolve(type: String, name: String, timeoutMs: Long): Pair<ByteArray, Int>? {
+        val dns = synchronized(this) { jmdns } ?: return null
+        val info = runCatching { dns.getServiceInfo("$type.local.", name, timeoutMs) }.getOrNull() ?: return null
+        val addr = info.inet4Addresses.firstOrNull() ?: return null
+        return addr.address to info.port
+    }
+
     private companion object { const val TAG = "MdnsAdvertiser" }
 }

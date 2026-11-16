@@ -287,7 +287,10 @@ int32_t dyn_decomp( AGParamRecPtr params, BitBuffer * bitstream, int32_t * pc, i
 
 	in = bitstream->cur;
 	startPos = bitstream->bitIndex;
-	maxPos = bitstream->byteSize * 8;
+	/* AIRPLAYTV: bitPos is relative to cur, so the limit must be too (it used the whole
+	   buffer size, letting corrupt packets read far past the end). */
+	RequireAction( bitstream->cur <= bitstream->end, return kALAC_ParamError; );
+	maxPos = (uint32_t) (bitstream->end - bitstream->cur) * 8;
 	bitPos = startPos;
 
     mb = params->mb0;

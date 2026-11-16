@@ -23,6 +23,10 @@ android {
         // CI passes these from the git tag (v1.2.3 → 1.2.3 / 10203); local builds use the defaults.
         versionName = (findProperty("appVersionName") as String?) ?: "1.0.0"
         versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+        // GitHub repository whose Releases are checked for updates (owner/name).
+        val updateRepo = (findProperty("updateRepo") as String?)
+            ?: System.getenv("GITHUB_REPOSITORY") ?: "AKondrackii/airplay-android-tv"
+        buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64") }
     }
 

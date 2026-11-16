@@ -27,6 +27,7 @@ internal class NativeCallbacks(
         fun onHlsStarted()
         fun onHlsStopped()
         fun onStreamsReset(type: Int)
+        fun onRemoteControl(dacpId: String, activeRemote: String)
     }
 
     private inline fun guard(name: String, block: () -> Unit) {
@@ -130,6 +131,15 @@ internal class NativeCallbacks(
     fun onVideoStop() = guard("onVideoStop") {
         sink.onHlsStop()
         events.onHlsStopped()
+    }
+
+    // ---- DACP remote control -------------------------------------------------
+    fun onDacp(dacpId: String?, activeRemote: String?) = guard("onDacp") {
+        // DACP-ID is 16 hex digits, Active-Remote a decimal token; reject anything else.
+        if (dacpId != null && activeRemote != null &&
+            dacpId.matches(Regex("[0-9A-Fa-f]{1,16}")) && activeRemote.matches(Regex("[0-9]{1,20}"))) {
+            events.onRemoteControl(dacpId.uppercase(), activeRemote)
+        }
     }
 
     fun getPlaybackInfo(): DoubleArray? = guard("getPlaybackInfo", null) { sink.hlsPlaybackInfo() }
